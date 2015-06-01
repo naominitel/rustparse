@@ -28,8 +28,7 @@ pub mod rt {
 mod grammar;
 mod ll;
 
-trait Generator {
-    type Expander: grammar::EBNFExpander;
+trait Generator: grammar::EBNFExpander {
     fn run(ast: grammar::Grammar, cx: &mut base::ExtCtxt) -> Vec<P<ast::Item>>;
 }
 
@@ -54,7 +53,7 @@ fn run_generator<'a, T: Generator>(
         cx: &'a mut base::ExtCtxt, sp: codemap::Span,
         id: ast::Ident, args: Vec<ast::TokenTree>
     ) -> Box<base::MacResult + 'a> {
-    let ast = grammar::parse::<T::Expander>(args, cx);
+    let ast = grammar::parse::<T>(args, cx);
     let items = <T as Generator>::run(ast, cx);
 
     Box::new(Result {

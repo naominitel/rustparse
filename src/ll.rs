@@ -9,10 +9,11 @@ use syntax::ext::quote::rt::ToTokens;
 use grammar;
 use grammar::Symbol;
 
+pub struct LL;
+
 // expands EBNF expression according to the Extended-LL
 // grammar class, to product an LL grammar
-struct ELLExpander;
-impl grammar::EBNFExpander for ELLExpander {
+impl grammar::EBNFExpander for LL {
     fn expand(expr: grammar::EBNFExpr, syms: Vec<Symbol>,
               grammar: &mut grammar::Grammar)
               -> (usize, Vec<Vec<grammar::Expr<Symbol>>>) {
@@ -680,11 +681,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     vec!(token, error, parse_fun)
 }
 
-pub struct LL;
-
 impl ::Generator for LL {
-    type Expander = ELLExpander;
-
     fn run(mut ast: grammar::Grammar, cx: &mut ExtCtxt) -> Vec<ptr::P<ast::Item>> {
         // add an EOF token, and add the information that EOF may follow
         // the start symbol. this is useful to properly compute FIRSTS
