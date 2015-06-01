@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::hash_map::{HashMap, Entry};
 
 use syntax::{ast, ptr};
 use syntax::codemap;
@@ -46,10 +46,10 @@ pub enum Symbol {
 // an argument is a symbol optionnaly bound to
 // an identifier that can be used to reference
 // the data attached to the symbol in an action
-type Arg = (Symbol, Option<ast::Ident>);
+pub type Arg = (Symbol, Option<ast::Ident>);
 
 // an action is just Rust code
-type Action = ptr::P<ast::Expr>;
+pub type Action = ptr::P<ast::Expr>;
 
 pub struct Rule {
     pub args: Vec<Arg>,
@@ -161,7 +161,7 @@ fn parse_sequence(parser: &mut parser::Parser) -> Vec<Expr<IdRef>> {
     // make sure we have at least one expr
     let mut ret = match parse_expr(parser) {
         Some(expr) => vec!(expr),
-        None => parser.unexpected()
+        None => panic!(parser.unexpected())
     };
 
     while let Some(expr) = parse_expr(parser) {
@@ -178,7 +178,7 @@ fn parse_expr(parser: &mut parser::Parser) -> Option<Expr<IdRef>> {
     match parser.token {
         token::Ident(id, _) => {
             let sym = Expr::Id((parser.span, id));
-            parser.bump();
+            parser.bump().ok().unwrap();
 
             let ext_expr = match parser.token {
                 token::BinOp(token::Star) => EBNFExpr::RTClosure,
@@ -188,22 +188,24 @@ fn parse_expr(parser: &mut parser::Parser) -> Option<Expr<IdRef>> {
             };
 
             // EBNF extended expression
-            parser.bump();
+            parser.bump().ok().unwrap();
             Some(Expr::Ext(ext_expr, vec!(sym)))
         }
 
         token::OpenDelim(token::Paren) => {
-            parser.bump();
+            parser.bump().ok().unwrap();
             let seq = parse_sequence(parser);
-            parser.expect(&token::CloseDelim(token::Paren));
+            parser.expect(&token::CloseDelim(token::Paren))
+                .unwrap_or_else(|e| panic!(e));
             
             // parenthesized expressions can only be part of an EBNF extended
             // expression, which means we must have + or * or ? here
             let ext_expr = match parser.bump_and_get() {
-                token::BinOp(token::Star) => EBNFExpr::RTClosure,
-                token::BinOp(token::Plus) => EBNFExpr::TClosure,
-                token::Question => EBNFExpr::Maybe,
-                tok => parser.unexpected_last(&tok)
+                Ok(token::BinOp(token::Star)) => EBNFExpr::RTClosure,
+                Ok(token::BinOp(token::Plus)) => EBNFExpr::TClosure,
+                Ok(token::Question) => EBNFExpr::Maybe,
+                Ok(tok) => panic!(parser.unexpected_last(&tok)),
+                Err(err) => panic!(err)
             };
 
             Some(Expr::Ext(ext_expr, seq))
@@ -223,18 +225,19 @@ fn parse_arg(parser: &mut parser::Parser) -> Option<UncheckedArg> {
                 if let token::Ident(id, _) = *t { Some(id) } else { None }
             }) {
             if parser.look_ahead(2, |t| *t == token::Colon) {
-                parser.bump();
-                parser.bump();
-                parser.bump();
+                parser.bump().ok().unwrap();
+                parser.bump().ok().unwrap();
+                parser.bump().ok().unwrap();
 
                 let ret = match parse_expr(parser) {
                     Some(expr) => Some(UncheckedArg {
                         expr: expr,
                         binding: Some(id)
                     }),
-                    None => parser.unexpected()
+                    None => panic!(parser.unexpected())
                 };
-                parser.expect(&token::CloseDelim(token::Paren));
+                parser.expect(&token::CloseDelim(token::Paren))
+                    .unwrap_or_else(|e| panic!(e));
                 return ret;
             }
         }
@@ -251,7 +254,7 @@ fn parse_args(parser: &mut parser::Parser) -> Vec<UncheckedArg> {
     // make sure we have at least one argument
     let mut ret = match parse_arg(parser) {
         Some(arg) => vec!(arg),
-        None => parser.unexpected()
+        None => panic!(parser.unexpected())
     };
 
     while let Some(arg) = parse_arg(parser) {
@@ -269,21 +272,21 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
     let empty_kwd = token::intern("empty");
 
     while parser.token != token::Eof {
-        let id = parser.parse_ident();
+        let id = parser.parse_ident().unwrap_or_else(|e| panic!(e));
         let sp = parser.span;
 
         let (id, sym) = if id.name == tok_kwd {
             // this is a token declaration
-            let term = parser.parse_ident();
-            let ty = match parser.bump_and_get() {
+            let term = parser.parse_ident().unwrap_or_else(|e| panic!(e));
+            let ty = match parser.bump_and_get().unwrap_or_else(|e| panic!(e)) {
                 token::Colon => {
                     let ty = parser.parse_ty();
-                    parser.expect(&token::Semi);
+                    parser.expect(&token::Semi).unwrap_or_else(|e| panic!(e));
                     ty
                 }
         
                 token::Semi => make_unit!(),
-                tok => parser.unexpected_last(&tok)
+                tok => panic!(parser.unexpected_last(&tok))
             };
 
             let idx = ctxt.terminals.len();
@@ -300,33 +303,37 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
         
             // optionnal type annotation
             let ty =
-                if parser.eat(&token::RArrow) { parser.parse_ty() }
+                if parser.eat(&token::RArrow).unwrap_or_else(|e| panic!(e)) {
+                    parser.parse_ty()
+                }
                 else { make_unit!() };
 
             // ::=
-            parser.expect(&token::ModSep);
-            parser.expect(&token::Eq);
+            parser.expect(&token::ModSep).unwrap_or_else(|e| panic!(e));
+            parser.expect(&token::Eq).unwrap_or_else(|e| panic!(e));
 
             // alternatives
             let mut productions = Vec::new();
             dow!({
                 let args = match parser.token {
                     token::Ident(id, _) if id.name == empty_kwd => {
-                        parser.bump();
+                        parser.bump().ok().unwrap();
                         vec!()
                     }
                     _ => parse_args(parser)
                 };
 
                 let expr =
-                    if parser.eat(&token::FatArrow) { Some(parser.parse_expr()) }
+                    if parser.eat(&token::FatArrow).unwrap_or_else(|e| panic!(e)) {
+                        Some(parser.parse_expr())
+                    }
                     else { None };
 
                 productions.push((args, expr));
-            } while match parser.bump_and_get() {
+            } while match parser.bump_and_get().unwrap_or_else(|e| panic!(e)) {
                 token::Semi => false,
                 token::Comma => true,
-                tok => parser.unexpected_last(&tok)
+                tok => panic!(parser.unexpected_last(&tok))
             });
 
             let idx = ctxt.nonterms.len();
@@ -343,22 +350,24 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
 
         // only check that now, so that the parsing
         // can continue and detect more errors
-        match ctxt.interner.entry(id).get() {
-            Ok(&mut Symbol::NonTerm(idx)) => {
-                let nonterm = &ctxt.nonterms[idx];
-                parser.span_err(sp, &format!("redifinition of symbol {}",
-                                             nonterm.name.as_str())[]);
-                parser.span_note(nonterm.span, "previous definition was here");
-            }
+        match ctxt.interner.entry(id) {
+            Entry::Occupied(v) => match *v.get() {
+                Symbol::NonTerm(idx) => {
+                    let nonterm = &ctxt.nonterms[idx];
+                    parser.span_err(sp, &format!("redifinition of symbol {}",
+                                                 nonterm.name.as_str())[..]);
+                    parser.span_note(nonterm.span, "previous definition was here");
+                }
 
-            Ok(&mut Symbol::Term(idx)) => {
-                let term = &ctxt.terminals[idx];
-                parser.span_err(sp, &format!("redefinition of terminal {}",
-                                             term.name.as_str())[]);
-                parser.span_note(term.span, "previous definition was here");
-            }
+                Symbol::Term(idx) => {
+                    let term = &ctxt.terminals[idx];
+                    parser.span_err(sp, &format!("redefinition of terminal {}",
+                                                 term.name.as_str())[..]);
+                    parser.span_note(term.span, "previous definition was here");
+                }
+            },
 
-            Err(v) => { v.insert(sym); }
+            Entry::Vacant(v) => { v.insert(sym); }
         }
     }
 }
@@ -431,7 +440,7 @@ fn check_and_expand<T>(rules: ParseContext) -> Grammar where T: EBNFExpander {
             Expr::Id((sp, id)) => match interner.get(&id) {
                 Some(&sym) => sym,
                 None => cx.span_fatal(sp,
-                    &format!("undefined symbol {}", id.as_str())[]
+                    &format!("undefined symbol {}", id.as_str())[..]
                 )
             },
 

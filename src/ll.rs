@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+use std::collections::hash_map::{HashMap, Entry};
 
 use syntax::{ast, codemap, parse, ptr};
 use syntax::ext::base::ExtCtxt;
@@ -54,7 +55,7 @@ struct FirstSet {
 
 fn firsts(grammar: &grammar::Grammar) -> Vec<FirstSet> {
     let mut ret = Vec::with_capacity(grammar.nonterms.len());
-    for _ in range(0, grammar.nonterms.len()) {
+    for _ in 0 .. grammar.nonterms.len() {
         ret.push(FirstSet {
             set: HashSet::new(),
             epsilon: false
@@ -66,7 +67,7 @@ fn firsts(grammar: &grammar::Grammar) -> Vec<FirstSet> {
     while !fp {
         fp = true;
 
-        for idx in range(0, grammar.nonterms.len()) {
+        for idx in 0 .. grammar.nonterms.len() {
             let ref nonterm = grammar.nonterms[idx];
             'a: for &rule in nonterm.productions.iter() {
                 for &(sym, _) in grammar.rules[rule].args.iter() {
@@ -128,11 +129,11 @@ fn follow(grammar: &grammar::Grammar, firsts: &Vec<FirstSet>)
     let mut rules_firsts = Vec::with_capacity(grammar.rules.len());
     let mut follows = Vec::with_capacity(grammar.nonterms.len());
 
-    for _ in range(0, grammar.nonterms.len()) {
+    for _ in 0 .. grammar.nonterms.len() {
         follows.push(HashSet::new())
     }
 
-    for _ in range(0, grammar.rules.len()) {
+    for _ in 0 .. grammar.rules.len() {
         rules_firsts.push(FirstSet {
             set: HashSet::new(),
             epsilon: false
@@ -148,7 +149,7 @@ fn follow(grammar: &grammar::Grammar, firsts: &Vec<FirstSet>)
     // remove accu and re-compute it each time it is needed
     // by first if !first.epsilon or first U follow(LHF) in
     // the other case... but that would be slower.
-    for idx in range(0, grammar.nonterms.len()) {
+    for idx in 0 .. grammar.nonterms.len() {
         let ref nonterm = grammar.nonterms[idx];
         for &rule in nonterm.productions.iter() {
             // FIRST set of the suffix of the sentence at a
@@ -218,7 +219,7 @@ fn follow(grammar: &grammar::Grammar, firsts: &Vec<FirstSet>)
     // now find the fix point
     while !fp {
         fp = true;
-        for idx in range(0, grammar.nonterms.len()) {
+        for idx in 0 .. grammar.nonterms.len() {
             let ref nonterm = grammar.nonterms[idx];
             for &rule in nonterm.productions.iter() {
                 // same as above but with only accu
@@ -265,9 +266,9 @@ fn parse_table(grammar: &grammar::Grammar, follow: &Vec<FollowSet>,
                rules_firsts: &Vec<FirstSet>) -> Result<ParseTable, Error> {
     let mut ret = Vec::with_capacity(rules_firsts.len());
 
-    for idx in range(0, grammar.nonterms.len()) {
+    for idx in 0 .. grammar.nonterms.len() {
         let mut entries = Vec::with_capacity(grammar.terminals.len());
-        for _ in range(0, grammar.terminals.len()) {
+        for _ in 0 .. grammar.terminals.len() {
             entries.push(None);
         }
 
@@ -310,7 +311,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     // all possible types for all tokens and non terminals we also remember
     // the association between a type and the corresponding constructor in
     // the yytype enum
-    let yytype_name = parse::token::gensym_ident("yytype");
+    let yytype_name = parse::token::gensym_ident("YYTYPE");
     let mut yyvariants = HashMap::new();
     let mut yytype_variants = Vec::with_capacity(grammar.terminals.len() +
                                                  grammar.nonterms.len());
@@ -351,9 +352,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
         // first create variants for the types of all nonterminal symbols
         for sym in grammar.nonterms.iter() {
-            match yyvariants.entry(sym.ty.clone()).get() {
-                Ok(_) => (),
-                Err(e) => { e.insert(make_yy_variant(sym.ty.clone())); }
+            match yyvariants.entry(sym.ty.clone()) {
+                Entry::Occupied(_) => (),
+                Entry::Vacant(v) => { v.insert(make_yy_variant(sym.ty.clone())); }
             }
         }
         
@@ -363,9 +364,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
         for term in grammar.terminals.iter() {
             // create a variant in the yytype enum
-            let yy_variant_name = *match yyvariants.entry(term.ty.clone()).get() {
-                Ok(ident) => ident,
-                Err(e) => e.insert(make_yy_variant(term.ty.clone()))
+            let yy_variant_name = *match yyvariants.entry(term.ty.clone()) {
+                Entry::Occupied(ident) => ident.into_mut(),
+                Entry::Vacant(v) => v.insert(make_yy_variant(term.ty.clone()))
             };
 
             // the path of the variant in the token type
@@ -385,7 +386,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
             // the action of the arm. pushes the data onto the
             // stack and then returns the token representation
             let ret_expr = cx.expr_usize(sp, tok_repr);
-            let push_stmt = quote_stmt!(cx, *yylval = $data_expr);
+            let push_stmt = quote_stmt!(cx, *yylval = $data_expr).unwrap();
 
             next_tok_arms.push(cx.arm(sp, 
                 vec!(pattern),
@@ -452,8 +453,8 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     // directly inlining them into the parse table entries... :(
     let mut rules = Vec::with_capacity(grammar.rules.len());
 
-    for rule_no in range(0, grammar.rules.len()) {
-        let rule = &grammar.rules[rule_no].args[];
+    for rule_no in 0 .. grammar.rules.len() {
+        let rule = &grammar.rules[rule_no].args[..];
         let mut vec = Vec::with_capacity(rule.len());
         for &(sym, _) in rule.iter() {
             vec.push(match sym {
@@ -472,7 +473,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
         let count = cx.expr_usize(sp, rule.len());
         let static_value = cx.expr_vec(sp, vec);
-        let ident = cx.ident_of(&format!("RULE_{}", rule_no)[]);
+        let ident = cx.ident_of(&format!("RULE_{}", rule_no)[..]);
         rules.push(quote_item!(cx,
             static $ident: [Step; $count] = $static_value;
         ).unwrap());
@@ -510,9 +511,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                             $yytype_name::$variant(data) => data, 
                             $unreachable
                         };
-                    )
+                    ).unwrap()
                 } else {
-                    quote_stmt!(cx, $arg_ident.pop();)
+                    quote_stmt!(cx, $arg_ident.pop().map(|_|()).unwrap();).unwrap()
                 });
             }
 
@@ -529,10 +530,10 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
             let variant = yyvariants.get(&nonterm.ty).unwrap();
             statements.push(quote_stmt!(cx,
                 $arg_ident.push($yytype_name::$variant($expr))
-            ));
+            ).unwrap());
 
             let blk = cx.block(sp, statements, None);
-            let ident = cx.ident_of(&format!("ACTION_{}", rule_no)[]);
+            let ident = cx.ident_of(&format!("action_{}", rule_no)[..]);
             actions_funs.push(cx.item_fn(sp, ident, vec![arg], make_unit!(), blk));
 
             rule_no += 1;
@@ -547,8 +548,8 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
         for &entry in line.iter() {
             line_vec.push(match entry {
                 Some(rule) => {
-                    let ident = cx.ident_of(&format!("RULE_{}", rule)[]);
-                    let action = cx.ident_of(&format!("ACTION_{}", rule)[]);
+                    let ident = cx.ident_of(&format!("RULE_{}", rule)[..]);
+                    let action = cx.ident_of(&format!("action_{}", rule)[..]);
                     quote_expr!(cx, Some((&$ident, $action)))
                 }
                 None => quote_expr!(cx, None)
@@ -569,7 +570,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
     // the other types
     // FIXME: hardcoded for now, should be user-defined
-    let error = quote_item!(cx, type Error = &'static str;).unwrap();
+    let error = quote_item!(cx, pub type Error = &'static str;).unwrap();
 
     // FIXME: hardcoded variant (see below)
     let ret_ty = &grammar.nonterms[0].ty;
@@ -595,6 +596,16 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                 Term(usize),
                 NonTerm(usize),
                 Action(fn(&mut Vec<$yytype_name>) -> ())
+            }
+
+            impl Clone for Step {
+                fn clone(&self) -> Step {
+                    match *self {
+                        Step::Term(s) => Step::Term(s),
+                        Step::NonTerm(s) => Step::NonTerm(s),
+                        Step::Action(a) => Step::Action(a)
+                    }
+                }
             }
 
             impl ::std::fmt::Debug for Step {
@@ -688,12 +699,12 @@ impl ::Generator for LL {
         });
         ast.nonterms[start].productions = vec!(rule);
 
-        for idx in range(0, ast.terminals.len()) {
+        for idx in 0 .. ast.terminals.len() {
             let ref term = ast.terminals[idx];
             println!("terminal {} is {}", idx, term.name.as_str());
         }
 
-        for idx in range(0, ast.nonterms.len()) {
+        for idx in 0 .. ast.nonterms.len() {
             let ref nonterm = ast.nonterms[idx];
             println!("non-terminal {} is {}", idx, nonterm.name.as_str());
             for &rule in nonterm.productions.iter() {
@@ -722,7 +733,7 @@ impl ::Generator for LL {
         let parse_table = parse_table(&ast, &follow, &rules_firsts);
 
         println!(" === FIRST table === ");
-        for sym in range(0, ast.nonterms.len()) {
+        for sym in 0 .. ast.nonterms.len() {
             print!("FIRST({}) = {{", ast.nonterms[sym].name.as_str());
             for &f in firsts[sym].set.iter() {
                 print!(" {}", ast.terminals[f].name.as_str())
@@ -734,7 +745,7 @@ impl ::Generator for LL {
         }
 
         println!("\n === FOLLOW table === ");
-        for sym in range(0, ast.nonterms.len()) {
+        for sym in 0 .. ast.nonterms.len() {
             print!("FOLLOW({}) = {{", ast.nonterms[sym].name.as_str());
             for &f in follow[sym].iter() {
                 print!(" {}", ast.terminals[f].name.as_str())
@@ -749,15 +760,15 @@ impl ::Generator for LL {
                     cx.span_fatal(cx.original_span(), &format!(
                         "conflict: rules {} and {} can both start with {}",
                         r1, r2, ast.terminals[term].name.as_str()
-                    )[])
+                    )[..])
                 }
             }
         };
 
         println!("\n === parse table === ");
-        for sym in range(0, ast.nonterms.len()) {
+        for sym in 0 .. ast.nonterms.len() {
             print!("When parsing {}: ", ast.nonterms[sym].name.as_str());
-            for idx in range(0, ast.terminals.len()) {
+            for idx in 0 .. ast.terminals.len() {
                 print!(" {}:{:?}", idx, parse_table[sym][idx])
             }
             println!("");

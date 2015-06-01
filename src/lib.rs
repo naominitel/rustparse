@@ -1,9 +1,6 @@
 #![feature(plugin_registrar)]
 #![feature(quote)]
-#![feature(core)]
-#![feature(hash)]
 #![feature(rustc_private)]
-#![feature(std_misc)]
 
 #![warn(unused_qualifications)]
 
@@ -47,14 +44,9 @@ impl base::MacResult for Result {
         Some(SmallVector::one(self.item))
     }
 
-    fn make_stmt(self: Box<Result>) -> Option<P<ast::Stmt>> {
-        self.handler.span_unimpl(self.span,
-            "invoking this macro on statement context is not implemented");
-    }
-
     fn make_expr(self: Box<Result>) -> Option<P<ast::Expr>> {
-        self.handler.span_fatal(self.span,
-            "macro invoked on expression context");
+        panic!(self.handler.span_fatal(self.span,
+            "macro invoked on expression context"));
     }
 }
 
@@ -66,8 +58,8 @@ fn run_generator<'a, T: Generator>(
     let items = <T as Generator>::run(ast, cx);
 
     Box::new(Result {
-        handler: diagnostic::mk_span_handler(
-            diagnostic::default_handler(diagnostic::Auto, None, true),
+        handler: diagnostic::SpanHandler::new(
+            diagnostic::Handler::new(diagnostic::Auto, None, true),
             codemap::CodeMap::new()
         ),
         span: sp,
@@ -83,8 +75,8 @@ macro_rules! register(
     ($reg:ident, $gen:ident) => (
         $reg.register_syntax_extension(
             { let name = stringify!($gen);
-              parse::token::intern(&format!("{}_parser", name)[]) },
-            base::IdentTT(Box::new(run_generator::<$gen>), None)
+              parse::token::intern(&format!("{}_parser", name)[..]) },
+            base::IdentTT(Box::new(run_generator::<$gen>), None, false)
         );
     )
 );
