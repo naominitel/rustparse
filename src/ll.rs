@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::collections::hash_map::{HashMap, Entry};
+use std::fmt::Write;
 
 use syntax::{ast, codemap, parse, ptr};
 use syntax::ext::base::ExtCtxt;
@@ -698,27 +699,28 @@ impl ::Generator for LL {
 
         for idx in 0 .. ast.terminals.len() {
             let ref term = ast.terminals[idx];
-            println!("terminal {} is {}", idx, term.name.as_str());
+            debug!("terminal {} is {}", idx, term.name.as_str());
         }
 
         for idx in 0 .. ast.nonterms.len() {
             let ref nonterm = ast.nonterms[idx];
-            println!("non-terminal {} is {}", idx, nonterm.name.as_str());
+            debug!("non-terminal {} is {}", idx, nonterm.name.as_str());
             for &rule in nonterm.productions.iter() {
-                print!("   {} ->", rule);
+                let mut debug = String::new();
+                write!(debug, "   {} ->", rule).unwrap();
                 for &(sym, _) in ast.rules[rule].args.iter() {
-                    print!(" {}", match sym {
+                    write!(debug, " {}", match sym {
                         Symbol::Term(s) => ast.terminals[s].name.as_str(),
                         Symbol::NonTerm(s) => ast.nonterms[s].name.as_str()
-                    });
+                    }).unwrap();
                 }
-                println!("")
+                debug!("{}", debug)
             }
         }
 
-        println!("computing firsts");
+        debug!("computing firsts");
         let firsts = firsts(&ast);
-        println!("computing follow");
+        debug!("computing follow");
         let (follow, rules_firsts) = follow(&ast, &firsts);
 
         // remove the rule we added for the start symbol
@@ -726,28 +728,32 @@ impl ::Generator for LL {
         // the associated non terminal
         ast.nonterms.pop();
         ast.rules.pop();
-        println!("computing parse table");
+        debug!("computing parse table");
         let parse_table = parse_table(&ast, &follow, &rules_firsts);
 
-        println!(" === FIRST table === ");
+        debug!(" === FIRST table === ");
         for sym in 0 .. ast.nonterms.len() {
-            print!("FIRST({}) = {{", ast.nonterms[sym].name.as_str());
+            let mut debug = String::new();
+            write!(debug, "FIRST({}) = {{", ast.nonterms[sym].name.as_str())
+                .unwrap();
             for &f in firsts[sym].set.iter() {
-                print!(" {}", ast.terminals[f].name.as_str())
+                write!(debug, " {}", ast.terminals[f].name.as_str()).unwrap();
             }
             if firsts[sym].epsilon {
-                print!(" epsilon");
+                write!(debug, " epsilon").unwrap();
             }
-            println!(" }}");
+            debug!("{} }}", debug);
         }
 
-        println!("\n === FOLLOW table === ");
+        debug!(" === FOLLOW table === ");
         for sym in 0 .. ast.nonterms.len() {
-            print!("FOLLOW({}) = {{", ast.nonterms[sym].name.as_str());
+            let mut debug = String::new();
+            write!(debug, "FOLLOW({}) = {{", ast.nonterms[sym].name.as_str())
+                .unwrap();
             for &f in follow[sym].iter() {
-                print!(" {}", ast.terminals[f].name.as_str())
+                write!(debug, " {}", ast.terminals[f].name.as_str()).unwrap();
             }
-            println!(" }}");
+            debug!("{} }}", debug);
         }
 
         let parse_table = match parse_table {
@@ -762,13 +768,15 @@ impl ::Generator for LL {
             }
         };
 
-        println!("\n === parse table === ");
+        debug!(" === parse table === ");
         for sym in 0 .. ast.nonterms.len() {
-            print!("When parsing {}: ", ast.nonterms[sym].name.as_str());
+            let mut debug = String::new();
+            write!(debug, "When parsing {}: ", ast.nonterms[sym].name.as_str())
+                .unwrap();
             for idx in 0 .. ast.terminals.len() {
-                print!(" {}:{:?}", idx, parse_table[sym][idx])
+                write!(debug, " {}:{:?}", idx, parse_table[sym][idx]).unwrap();
             }
-            println!("");
+            debug!("{}", debug);
         }
 
         codegen(ast, &parse_table, cx)

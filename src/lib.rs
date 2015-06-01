@@ -7,6 +7,8 @@
 extern crate syntax;
 extern crate rustc;
 
+#[macro_use] extern crate log;
+
 use syntax::{ast, codemap, diagnostic, parse};
 use syntax::ext::base;
 use syntax::ext::build::AstBuilder;
