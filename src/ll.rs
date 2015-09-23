@@ -699,19 +699,19 @@ impl ::Generator for LL {
 
         for idx in 0 .. ast.terminals.len() {
             let ref term = ast.terminals[idx];
-            debug!("terminal {} is {}", idx, term.name.as_str());
+            debug!("terminal {} is {}", idx, term.name.name.as_str());
         }
 
         for idx in 0 .. ast.nonterms.len() {
             let ref nonterm = ast.nonterms[idx];
-            debug!("non-terminal {} is {}", idx, nonterm.name.as_str());
+            debug!("non-terminal {} is {}", idx, nonterm.name.name.as_str());
             for &rule in nonterm.productions.iter() {
                 let mut debug = String::new();
                 write!(debug, "   {} ->", rule).unwrap();
                 for &(sym, _) in ast.rules[rule].args.iter() {
                     write!(debug, " {}", match sym {
-                        Symbol::Term(s) => ast.terminals[s].name.as_str(),
-                        Symbol::NonTerm(s) => ast.nonterms[s].name.as_str()
+                        Symbol::Term(s) => ast.terminals[s].name.name.as_str(),
+                        Symbol::NonTerm(s) => ast.nonterms[s].name.name.as_str()
                     }).unwrap();
                 }
                 debug!("{}", debug)
@@ -734,10 +734,10 @@ impl ::Generator for LL {
         debug!(" === FIRST table === ");
         for sym in 0 .. ast.nonterms.len() {
             let mut debug = String::new();
-            write!(debug, "FIRST({}) = {{", ast.nonterms[sym].name.as_str())
+            write!(debug, "FIRST({}) = {{", ast.nonterms[sym].name.name.as_str())
                 .unwrap();
             for &f in firsts[sym].set.iter() {
-                write!(debug, " {}", ast.terminals[f].name.as_str()).unwrap();
+                write!(debug, " {}", ast.terminals[f].name.name.as_str()).unwrap();
             }
             if firsts[sym].epsilon {
                 write!(debug, " epsilon").unwrap();
@@ -748,10 +748,10 @@ impl ::Generator for LL {
         debug!(" === FOLLOW table === ");
         for sym in 0 .. ast.nonterms.len() {
             let mut debug = String::new();
-            write!(debug, "FOLLOW({}) = {{", ast.nonterms[sym].name.as_str())
+            write!(debug, "FOLLOW({}) = {{", ast.nonterms[sym].name.name.as_str())
                 .unwrap();
             for &f in follow[sym].iter() {
-                write!(debug, " {}", ast.terminals[f].name.as_str()).unwrap();
+                write!(debug, " {}", ast.terminals[f].name.name.as_str()).unwrap();
             }
             debug!("{} }}", debug);
         }
@@ -762,7 +762,7 @@ impl ::Generator for LL {
                 Error::Conflict(r1, r2, term) => {
                     cx.span_fatal(cx.original_span(), &format!(
                         "conflict: rules {} and {} can both start with {}",
-                        r1, r2, ast.terminals[term].name.as_str()
+                        r1, r2, ast.terminals[term].name.name.as_str()
                     )[..])
                 }
             }
@@ -771,7 +771,7 @@ impl ::Generator for LL {
         debug!(" === parse table === ");
         for sym in 0 .. ast.nonterms.len() {
             let mut debug = String::new();
-            write!(debug, "When parsing {}: ", ast.nonterms[sym].name.as_str())
+            write!(debug, "When parsing {}: ", ast.nonterms[sym].name.name.as_str())
                 .unwrap();
             for idx in 0 .. ast.terminals.len() {
                 write!(debug, " {}:{:?}", idx, parse_table[sym][idx]).unwrap();

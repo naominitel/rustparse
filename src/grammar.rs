@@ -355,14 +355,14 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
                 Symbol::NonTerm(idx) => {
                     let nonterm = &ctxt.nonterms[idx];
                     parser.span_err(sp, &format!("redifinition of symbol {}",
-                                                 nonterm.name.as_str())[..]);
+                                                 nonterm.name.name.as_str())[..]);
                     parser.span_note(nonterm.span, "previous definition was here");
                 }
 
                 Symbol::Term(idx) => {
                     let term = &ctxt.terminals[idx];
                     parser.span_err(sp, &format!("redefinition of terminal {}",
-                                                 term.name.as_str())[..]);
+                                                 term.name.name.as_str())[..]);
                     parser.span_note(term.span, "previous definition was here");
                 }
             },
@@ -440,7 +440,7 @@ fn check_and_expand<T>(rules: ParseContext) -> Grammar where T: EBNFExpander {
             Expr::Id((sp, id)) => match interner.get(&id) {
                 Some(&sym) => sym,
                 None => cx.span_fatal(sp,
-                    &format!("undefined symbol {}", id.as_str())[..]
+                    &format!("undefined symbol {}", id.name.as_str())[..]
                 )
             },
 
