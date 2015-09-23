@@ -1,0 +1,8 @@
+[package]
+name = "rustparse"
+version = "0.0.1"
+authors = ["Naomi Nitel <naominitel@gmail.com>"]
+
+[lib]
+name = "rustparse"
+crate-type = ["dylib"]
