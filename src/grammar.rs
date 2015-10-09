@@ -197,7 +197,7 @@ fn parse_expr(parser: &mut parser::Parser) -> Option<Expr<IdRef>> {
             let seq = parse_sequence(parser);
             parser.expect(&token::CloseDelim(token::Paren))
                 .unwrap_or_else(|e| panic!(e));
-            
+
             // parenthesized expressions can only be part of an EBNF extended
             // expression, which means we must have + or * or ? here
             let ext_expr = match parser.bump_and_get() {
@@ -430,7 +430,7 @@ fn check_and_expand<T>(rules: ParseContext) -> Grammar where T: EBNFExpander {
             }
         }
     };
-    
+
     fn check_and_expand_expr<T>(expr: Expr<IdRef>,
                                 exp_map: &mut HashMap<Vec<Symbol>, usize>,
                                 interner: &mut HashMap<ast::Ident, Symbol>,

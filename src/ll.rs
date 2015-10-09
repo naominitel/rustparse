@@ -340,7 +340,6 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                     ]),
                     id: ast::DUMMY_NODE_ID,
                     disr_expr: None,
-                    vis: ast::Inherited
                 }
             }
         );
@@ -359,7 +358,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                 Entry::Vacant(v) => { v.insert(make_yy_variant(sym.ty.clone())); }
             }
         }
-        
+
         // this counter generates the internal
         // representation of the tokens
         let mut tok_repr = 0;
@@ -563,7 +562,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     let static_value = cx.expr_vec(sp, table_vec);
     let term_count = cx.expr_usize(sp, grammar.terminals.len() + 1);
     let nonterm_count = cx.expr_usize(sp, grammar.nonterms.len());
-    let table = quote_item!(cx,   
+    let table = quote_item!(cx,
         static PARSE_TABLE: [[Option<(&'static [Step],
                                       fn(&mut Vec<$yytype_name>) -> ())>;
                               $term_count];
