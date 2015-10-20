@@ -50,12 +50,12 @@ impl grammar::EBNFExpander for LL {
 // in the grammar. this is a fix point-search until
 // we cannot add more symbols to any set anymore
 
-struct FirstSet {
-    set: HashSet<usize>,
-    epsilon: bool
+pub struct FirstSet {
+    pub set: HashSet<usize>,
+    pub epsilon: bool
 }
 
-fn firsts(grammar: &grammar::Grammar) -> Vec<FirstSet> {
+pub fn firsts(grammar: &grammar::Grammar) -> Vec<FirstSet> {
     let mut ret = Vec::with_capacity(grammar.nonterms.len());
     for _ in 0 .. grammar.nonterms.len() {
         ret.push(FirstSet {

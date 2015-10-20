@@ -6,3 +6,6 @@ authors = ["Naomi Nitel <naominitel@gmail.com>"]
 [lib]
 name = "rustparse"
 crate-type = ["dylib"]
+
+[dependencies]
+fsa = { version = "*", path = "../RustLex/fsa"}

@@ -4,6 +4,7 @@
 
 #![warn(unused_qualifications)]
 
+extern crate fsa;
 extern crate syntax;
 extern crate rustc;
 
@@ -30,6 +31,7 @@ mod codegen;
 #[macro_use]
 mod grammar;
 mod ll;
+mod lr;
 
 trait Generator: grammar::EBNFExpander {
     fn run(ast: grammar::Grammar, cx: &mut base::ExtCtxt) -> Vec<P<ast::Item>>;
@@ -86,5 +88,7 @@ macro_rules! register(
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut ::rustc::plugin::Registry) {
     use ll::LL;
-    register!(reg, LL)
+    use lr::LR;
+    register!(reg, LL);
+    register!(reg, LR);
 }

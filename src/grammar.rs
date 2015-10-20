@@ -284,7 +284,7 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
                     parser.expect(&token::Semi).unwrap_or_else(|e| panic!(e));
                     ty
                 }
-        
+
                 token::Semi => make_unit!(),
                 tok => panic!(parser.unexpected_last(&tok))
             };
