@@ -26,6 +26,7 @@ pub mod rt {
     }
 }
 
+mod codegen;
 #[macro_use]
 mod grammar;
 mod ll;

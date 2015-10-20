@@ -1,12 +1,12 @@
 use std::collections::HashSet;
-use std::collections::hash_map::{HashMap, Entry};
 use std::fmt::Write;
 
-use syntax::{ast, codemap, parse, ptr};
+use syntax::{ast, parse, ptr};
 use syntax::ext::base::ExtCtxt;
 use syntax::ext::build::AstBuilder;
 use syntax::ext::quote::rt::ToTokens;
 
+use codegen;
 use grammar;
 use grammar::Symbol;
 
@@ -308,145 +308,15 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     let eof = cx.expr_usize(sp, grammar.terminals.len() - 1);
     grammar.terminals.pop();
 
-    // yytype. the type of the data accumulated on the data stack and that
-    // are pushed back and forth by actions. just a big enum that can handle
-    // all possible types for all tokens and non terminals we also remember
-    // the association between a type and the corresponding constructor in
-    // the yytype enum
-    let yytype_name = parse::token::gensym_ident("YYTYPE");
-    let mut yyvariants = HashMap::new();
-    let mut yytype_variants = Vec::with_capacity(grammar.terminals.len() +
-                                                 grammar.nonterms.len());
-
-    // we also generate the Token type and the match to convert input tokens
-    // into their internal representation as an integer. this match must also
-    // return the data associated to that token to be pushed onto the data stack.
-    let mut tok_variants  = Vec::with_capacity(grammar.terminals.len());
-    let mut next_tok_arms = Vec::with_capacity(grammar.terminals.len());
-
-    {
-        // creates a variant with the given name and type
-        let make_variant = |ident, ty| ptr::P(
-            codemap::Spanned {
-                span: sp,
-                node: ast::Variant_ {
-                    name: ident,
-                    attrs: vec!(),
-                    kind: ast::TupleVariantKind(vec![
-                        ast::VariantArg {
-                            id: ast::DUMMY_NODE_ID,
-                            ty: ty
-                        }
-                    ]),
-                    id: ast::DUMMY_NODE_ID,
-                    disr_expr: None,
-                }
-            }
-        );
-
-        // creates a variant in the yytype enum for the given type
-        let mut make_yy_variant = |ty| {
-            let variant = parse::token::gensym_ident("");
-            yytype_variants.push(make_variant(variant, ty));
-            variant
-        };
-
-        // first create variants for the types of all nonterminal symbols
-        for sym in grammar.nonterms.iter() {
-            match yyvariants.entry(sym.ty.clone()) {
-                Entry::Occupied(_) => (),
-                Entry::Vacant(v) => { v.insert(make_yy_variant(sym.ty.clone())); }
-            }
-        }
-
-        // this counter generates the internal
-        // representation of the tokens
-        let mut tok_repr = 0;
-
-        for term in grammar.terminals.iter() {
-            // create a variant in the yytype enum
-            let yy_variant_name = *match yyvariants.entry(term.ty.clone()) {
-                Entry::Occupied(ident) => ident.into_mut(),
-                Entry::Vacant(v) => v.insert(make_yy_variant(term.ty.clone()))
-            };
-
-            // the path of the variant in the token type
-            let path = cx.path(sp, vec!(cx.ident_of("Token"), term.name));
-
-            // we create an arm for the match which binds the
-            // data inside the token to a gensymed ident
-            let data_ident = parse::token::gensym_ident("");
-            let pattern = cx.pat_enum(sp, path, vec!(cx.pat_ident(sp, data_ident)));
-
-            // the yytype variant for the type of this token
-            let data_expr = cx.expr_call(sp,
-                cx.expr_path(cx.path(sp, vec![yytype_name, yy_variant_name])),
-                vec![cx.expr_ident(sp, data_ident)]
-            );    
-
-            // the action of the arm. pushes the data onto the
-            // stack and then returns the token representation
-            let ret_expr = cx.expr_usize(sp, tok_repr);
-            let push_stmt = quote_stmt!(cx, *yylval = $data_expr).unwrap();
-
-            next_tok_arms.push(cx.arm(sp, 
-                vec!(pattern),
-                cx.expr_block(cx.block(sp, vec![push_stmt], Some(ret_expr)))
-            ));
-
-            // create a variant in the Token type
-            // (external representation of the tokens)
-            tok_variants.push(make_variant(term.name, term.ty.clone()));
-            tok_repr += 1;
-        }
-    }
+    let enums = codegen::parser_enums(&grammar, cx);
+    let yytype_name = enums.data.ident;
 
     // will be used later to generate match statements. we generate
     // a fallback arm (that is never supposed to be used anyay...)
     // only when we can have more than a single type on the stack
     let unreachable =
-        if yytype_variants.len() > 1 { Some(cx.arm_unreachable(sp)) }
+        if enums.data_variants.len() > 1 { Some(cx.arm_unreachable(sp)) }
         else { None };
-
-    // finally create the external token and the yytype enum types
-    // token must be created by hand because ExtCtxt doesn't let
-    // us make it "pub" easily and it is part of the external interface...
-    let yytype_enum = ast::ItemEnum(
-        ast::EnumDef { variants: yytype_variants },
-        ast::Generics {
-            lifetimes: vec!(),
-            ty_params: ::syntax::owned_slice::OwnedSlice::empty(),
-            where_clause: ast::WhereClause {
-                id: ast::DUMMY_NODE_ID,
-                predicates: vec!()
-            }
-        }
-    );
-
-    let derive = parse::token::InternedString::new("derive");
-    let debug = parse::token::InternedString::new("Debug");
-    let item = cx.meta_list(sp, derive, vec![cx.meta_word(sp, debug)]);
-    let attr = cx.attribute(sp, item);
-    let yytype_def = cx.item(sp, yytype_name, vec![attr], yytype_enum);
-
-    let token = ptr::P(ast::Item {
-        ident: cx.ident_of("Token"),
-        attrs: vec!(),
-        id: ast::DUMMY_NODE_ID,
-        node: ast::ItemEnum(
-            ast::EnumDef { variants: tok_variants },
-            ast::Generics {
-                lifetimes: vec!(),
-                ty_params: ::syntax::owned_slice::OwnedSlice::empty(),
-                where_clause: ast::WhereClause {
-                    id: ast::DUMMY_NODE_ID,
-                    predicates: vec!()
-                }
-            }
-        ),
-        vis: ast::Public,
-        span: sp
-    });
 
     // generate a static array for each rule. the generated parse table
     // will only contain slices to them. we need indirection here because
@@ -506,10 +376,10 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                         Symbol::NonTerm(sym) => &grammar.nonterms[sym].ty,
                     };
 
-                    let variant = yyvariants.get(ty).unwrap();
+                    let variant = enums.data_variants.get(ty).unwrap();
                     quote_stmt!(cx,
                         let $ident = match $arg_ident.pop().unwrap() {
-                            $yytype_name::$variant(data) => data, 
+                            $yytype_name::$variant(data) => data,
                             $unreachable
                         };
                     ).unwrap()
@@ -528,7 +398,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                 None => quote_expr!(cx, ())
             };
 
-            let variant = yyvariants.get(&nonterm.ty).unwrap();
+            let variant = enums.data_variants.get(&nonterm.ty).unwrap();
             statements.push(quote_stmt!(cx,
                 $arg_ident.push($yytype_name::$variant($expr))
             ).unwrap());
@@ -575,22 +445,15 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
     // FIXME: hardcoded variant (see below)
     let ret_ty = &grammar.nonterms[0].ty;
-    let ret_variant = yyvariants.get(ret_ty).unwrap();
+    let ret_variant = enums.data_variants.get(ret_ty).unwrap();
+    let yytype_def = enums.data;
+    let next_tok_def = enums.next_tok;
 
     let parse_fun = quote_item!(cx,
         pub fn parse<'a, T>(mut lexer: T) -> Result<$ret_ty, Error>
                             where T: Iterator<Item = &'a Token> {
             $yytype_def
-
-            fn next_token<'a, T>(lexer: &mut T, yylval: &mut $yytype_name) -> usize
-                                 where T: Iterator<Item = &'a Token> {
-                let tok = match lexer.next() {
-                    Some(t) => t,
-                    None => return $eof
-                };
-
-                match *tok { $next_tok_arms }
-            }
+            $next_tok_def
 
             #[derive(Copy)]
             enum Step {
@@ -626,10 +489,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
             let mut stack = Vec::new();
             let mut data_stack = Vec::new();
-            let mut yylval = unsafe { ::std::mem::uninitialized() };
             stack.push(Step::NonTerm(0));
 
-            let mut cur = next_token(&mut lexer, &mut yylval);
+            let (mut yylval, mut cur) = next_token(&mut lexer);
             debug!("stack {:?}", stack);
             debug!("stack state: {:?}", data_stack);
 
@@ -655,8 +517,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                     Step::Term(sym)
                         if sym == cur => {
                             data_stack.push(yylval);
-                            yylval = unsafe { ::std::mem::uninitialized() };
-                            cur = next_token(&mut lexer, &mut yylval);
+                            let (val, st) = next_token(&mut lexer);
+                            yylval = val;
+                            cur = st;
                         }
 
                     Step::Term(_) => return Err("syntax error"),
@@ -678,7 +541,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
         }
     ).unwrap();
 
-    vec!(token, error, parse_fun)
+    vec!(enums.token, error, parse_fun)
 }
 
 impl ::Generator for LL {
