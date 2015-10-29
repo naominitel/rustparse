@@ -67,7 +67,7 @@ fn run_generator<'a, T: Generator>(
             codemap::CodeMap::new()
         ),
         span: sp,
-        item: quote_item!(cx, mod $id {
+        item: quote_item!(cx, pub mod $id {
             // add a glob use
             #[allow(unused_imports)] use super::*;
             $items
