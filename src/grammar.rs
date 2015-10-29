@@ -10,17 +10,6 @@ macro_rules! dow {
     ($blk:block while $cond:expr) => (loop { $blk if !$cond { break } })
 }
 
-// generates a dummy unit type used when no type
-// annotation is provided, with a dummy span
-#[macro_export]
-macro_rules! make_unit {
-    () => (::syntax::ptr::P(::syntax::ast::Ty {
-        id: ::syntax::ast::DUMMY_NODE_ID,
-        node: ::syntax::ast::TyTup(vec!()),
-        span: ::syntax::codemap::DUMMY_SP
-    }))
-}
-
 // this is the parser for grammar descriptions
 // it's called grammar and not parser because this would be too confusing with
 // the generated parser. this also exports type definitions for the interal
@@ -62,13 +51,13 @@ pub struct NonTerminal {
     pub name: ast::Ident,
     pub span: codemap::Span,
     pub productions: Vec<usize>,
-    pub ty: ptr::P<ast::Ty>
+    pub ty: Option<ptr::P<ast::Ty>>
 }
 
 pub struct Terminal {
     pub name: ast::Ident,
     pub span: codemap::Span,
-    pub ty: ptr::P<ast::Ty>
+    pub ty: Option<ptr::P<ast::Ty>>
 }
 
 pub struct Grammar {
@@ -84,7 +73,7 @@ impl Grammar {
             name: token::gensym_ident(""),
             span: codemap::DUMMY_SP,
             productions: Vec::new(),
-            ty: make_unit!()
+            ty: None
         });
         idx
     }
@@ -94,7 +83,7 @@ impl Grammar {
         self.terminals.push(Terminal {
             name: token::gensym_ident(""),
             span: codemap::DUMMY_SP,
-            ty: make_unit!()
+            ty: None
         });
         idx
     }
@@ -282,10 +271,10 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
                 token::Colon => {
                     let ty = parser.parse_ty();
                     parser.expect(&token::Semi).unwrap_or_else(|e| panic!(e));
-                    ty
+                    Some(ty)
                 }
 
-                token::Semi => make_unit!(),
+                token::Semi => None,
                 tok => panic!(parser.unexpected_last(&tok))
             };
 
@@ -300,13 +289,12 @@ fn parse_rules(parser: &mut parser::Parser, ctxt: &mut ParseContext) {
         } else {
             // this is a non-terminal declaration
             // rule ::= ID (: ty)? (::=) (productions (| productions+))? ;
-        
+
             // optionnal type annotation
             let ty =
                 if parser.eat(&token::RArrow).unwrap_or_else(|e| panic!(e)) {
-                    parser.parse_ty()
-                }
-                else { make_unit!() };
+                    Some(parser.parse_ty())
+                } else { None };
 
             // ::=
             parser.expect(&token::ModSep).unwrap_or_else(|e| panic!(e));

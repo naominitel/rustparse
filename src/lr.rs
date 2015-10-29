@@ -231,7 +231,7 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
             let stmts: Vec<_> = rule.args.iter().rev().map(|&(sym, binding)| {
                 let ident = match binding {
                     Some(id) => id,
-                    None => parse::token::gensym_ident("_")
+                    None => parse::token::gensym_ident("_data")
                 };
 
                 let ty = match sym {
@@ -240,18 +240,25 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
                 };
 
                 let variant = enums.data_variants.get(ty).unwrap();
-                quote_stmt!(cx,
-                    let (state, mut $ident) = match stack.pop().unwrap() {
-                        (state, $yytype_name::$variant(data)) => (state, data),
-                        $unreachable
-                    };
-                ).unwrap()
+                if let Some(_) = *ty {
+                    quote_stmt!(cx,
+                        let (state, mut $ident) = match stack.pop().unwrap() {
+                            (state, $yytype_name::$variant(data)) => (state, data),
+                            $unreachable
+                        };)
+                } else {
+                    quote_stmt!(cx,
+                        let state = match stack.pop().unwrap() {
+                            (state, $yytype_name::$variant) => state
+                            $unreachable
+                        };)
+                }
             }).collect();
 
             let variant = enums.data_variants.get(&nt.ty).unwrap();
             let action = match rule.action {
-                Some(ref act) => act.clone(),
-                None => quote_expr!(cx, ())
+                Some(ref act) => quote_expr!(cx, $yytype_name::$variant($act)),
+                None => quote_expr!(cx, $yytype_name::$variant)
             };
 
             let fn_name = cx.ident_of(&format!("RULE_{}", rule_no)[..]);
@@ -266,8 +273,7 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
                 fn $fn_name(state: usize, stack: &mut Vec<(usize, $yytype_name)>)
                     -> usize {
                     $stmts
-                    let value = $action;
-                    stack.push((state, $yytype_name::$variant(value)));
+                    stack.push((state, $action));
                     GOTO_TABLE[state][$nt_no]
                 }
             ).unwrap());
@@ -295,8 +301,11 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
     ).unwrap();
 
     // FIXME: not necessarily 0
-    let ret_ty = &grammar.nonterms[0].ty;
-    let final_variant = enums.data_variants.get(ret_ty).unwrap();
+    let ret_variant = enums.data_variants.get(&grammar.nonterms[0].ty).unwrap();
+    let (ret_ty, ret_arm) = match grammar.nonterms[0].ty {
+        Some(ref ty) => (ty.clone(), quote_arm!(cx, $yytype_name::$ret_variant(u) => Ok(u),)),
+        None => (quote_ty!(cx, ()), quote_arm!(cx, $yytype_name::$ret_variant => Ok(()),))
+    };
 
     let yytype_def = enums.data;
     let next_tok = enums.next_tok;
@@ -340,8 +349,8 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
                 }
             }
 
-            match stack.pop().unwrap() {
-                (_, $yytype_name::$final_variant(ret)) => Ok(ret),
+            match stack.pop().unwrap().1 {
+                $ret_arm
                 $unreachable
             }
         }

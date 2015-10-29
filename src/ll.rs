@@ -362,11 +362,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
         for &prod in nonterm.productions.iter() {
             let rule = &mut grammar.rules[prod];
 
-            let arg_ident = parse::token::gensym_ident("stack");
-            let arg = cx.arg(sp, arg_ident, quote_ty!(cx, &mut Vec<$yytype_name>));
-
             // generate the action. first we need to generate code to
             // retreive the data from bound symbols from the stack
+            let arg_ident = parse::token::gensym_ident("stack");
             let mut statements = Vec::new();
 
             for &(sym, binding) in rule.args.iter().rev() {
@@ -386,6 +384,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                 } else {
                     quote_stmt!(cx, $arg_ident.pop().map(|_|()).unwrap();).unwrap()
                 });
+
             }
 
             // generate code to push the returned
@@ -405,7 +404,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
 
             let blk = cx.block(sp, statements, None);
             let ident = cx.ident_of(&format!("action_{}", rule_no)[..]);
-            actions_funs.push(cx.item_fn(sp, ident, vec![arg], make_unit!(), blk));
+            actions_funs.push(quote_item!(cx,
+                fn $ident($arg_ident: &mut Vec<$yytype_name>) { $blk }
+            ));
 
             rule_no += 1;
         }
@@ -443,9 +444,12 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
     // FIXME: hardcoded for now, should be user-defined
     let error = quote_item!(cx, pub type Error = &'static str;).unwrap();
 
-    // FIXME: hardcoded variant (see below)
-    let ret_ty = &grammar.nonterms[0].ty;
-    let ret_variant = enums.data_variants.get(ret_ty).unwrap();
+    let ret_variant = enums.data_variants.get(&grammar.nonterms[0].ty).unwrap();
+    let (ret_ty, ret_arm) = match grammar.nonterms[0].ty {
+        Some(ref ty) => (ty.clone(), quote_arm!(cx, $yytype_name::$ret_variant(u) => Ok(u))),
+        None => (quote_ty!(cx, ()), quote_arm!(cx, $yytype_name::$ret_variant(u) => Ok(u)))
+    };
+
     let yytype_def = enums.data;
     let next_tok_def = enums.next_tok;
 
@@ -535,7 +539,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
             if cur != $eof { return Err("extra tokens at end of stream"); }
 
             match data_stack.pop().unwrap() {
-                $yytype_name::$ret_variant(u) => Ok(u),
+                $ret_arm
                 $unreachable
             }
         }

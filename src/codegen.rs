@@ -9,16 +9,17 @@ use syntax::ext::build::AstBuilder;
 use grammar;
 
 // creates a variant with the given name and type
-fn make_variant(ident: ast::Ident, ty: ptr::P<ast::Ty>, sp: codemap::Span)
+fn make_variant(ident: ast::Ident, ty: Option<ptr::P<ast::Ty>>, sp: codemap::Span)
                 -> ptr::P<ast::Variant> {
     ptr::P(codemap::Spanned {
         span: sp,
         node: ast::Variant_ {
             name: ident,
             attrs: vec!(),
-            kind: ast::TupleVariantKind(vec![
-                ast::VariantArg { id: ast::DUMMY_NODE_ID, ty: ty }
-            ]),
+            kind: ast::TupleVariantKind(match ty {
+                Some(ty) => vec![ast::VariantArg { id: ast::DUMMY_NODE_ID, ty: ty }],
+                None => vec![]
+            }),
             id: ast::DUMMY_NODE_ID,
             disr_expr: None,
         }
@@ -29,7 +30,7 @@ pub struct ParserEnums {
     pub token: ptr::P<ast::Item>,
     pub data: ptr::P<ast::Item>,
     pub next_tok: ptr::P<ast::Item>,
-    pub data_variants: HashMap<ptr::P<ast::Ty>, ast::Ident>,
+    pub data_variants: HashMap<Option<ptr::P<ast::Ty>>, ast::Ident>,
 }
 
 pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums {
@@ -86,13 +87,22 @@ pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums
             // we create an arm for the match which binds the
             // data inside the token to a gensymed ident
             let data_ident = parse::token::gensym_ident("");
-            let pattern = cx.pat_enum(sp, path, vec!(cx.pat_ident(sp, data_ident)));
+            let (pattern, data_expr) = match term.ty {
+                Some(_) => {
+                    // the yytype variant for the type of this token
+                    let data_expr = cx.expr_call(sp,
+                        cx.expr_path(cx.path(sp, vec![yytype_name, yy_variant_name])),
+                        vec![cx.expr_ident(sp, data_ident)]
+                    );
 
-            // the yytype variant for the type of this token
-            let data_expr = cx.expr_call(sp,
-                cx.expr_path(cx.path(sp, vec![yytype_name, yy_variant_name])),
-                vec![cx.expr_ident(sp, data_ident)]
-            );
+                    let pat = cx.pat_enum(sp, path, vec!(cx.pat_ident(sp, data_ident)));
+                    (pat, data_expr)
+                }
+
+                None =>
+                    (cx.pat_enum(sp, path, vec![]),
+                     quote_expr!(cx, $yytype_name::$yy_variant_name))
+            };
 
             // the action of the arm. pushes the data onto the
             // stack and then returns the token representation
