@@ -129,11 +129,11 @@ pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums
     let debug = parse::token::InternedString::new("Debug");
     let item = cx.meta_list(sp, derive, vec![cx.meta_word(sp, debug)]);
     let attr = cx.attribute(sp, item);
-    let yytype_def = cx.item(sp, yytype_name, vec![attr], yytype_enum);
+    let yytype_def = cx.item(sp, yytype_name, vec![attr.clone()], yytype_enum);
 
     let token = ptr::P(ast::Item {
         ident: cx.ident_of("Token"),
-        attrs: vec!(),
+        attrs: vec![attr],
         id: ast::DUMMY_NODE_ID,
         node: ast::ItemEnum(
             ast::EnumDef { variants: tok_variants },
