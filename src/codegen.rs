@@ -155,13 +155,13 @@ pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums
 
     let next_tok = quote_item!(cx,
         fn next_token<'a, T>(lexer: &mut T) -> ($yytype_name, usize)
-            where T: Iterator<Item = &'a Token> {
+            where T: Iterator<Item = Token> {
             let tok = match lexer.next() {
                 Some(t) => t,
                 None => return (unsafe { ::std::mem::uninitialized() }, $eof)
             };
 
-            match *tok { $next_tok_arms }
+            match tok { $next_tok_arms }
         }
     ).unwrap();
 

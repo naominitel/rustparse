@@ -303,7 +303,7 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
 
     let parse_fun = quote_item!(cx,
         pub fn parse<'a, T>(mut lexer: T) -> Result<$ret_ty, ()>
-            where T: Iterator<Item = &'a Token> {
+            where T: Iterator<Item = Token> {
             enum Action {
                 Err,
                 Acc,
