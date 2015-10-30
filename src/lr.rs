@@ -276,7 +276,7 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
                     stack.push((state, $action));
                     GOTO_TABLE[state][$nt_no]
                 }
-            ).unwrap());
+            ));
         }
     };
 
@@ -293,12 +293,12 @@ fn codegen(mut grammar: grammar::Grammar, table: ParseTable, cx: &mut ExtCtxt,
 
     let goto_table = quote_item!(cx,
         static GOTO_TABLE: [[usize ; $nterm_count] ; $state_count] = $goto_table;
-    ).unwrap();
+    );
 
     let table = quote_item!(cx,
         static PARSE_TABLE: [[Action ; $term_count] ; $state_count]
             = $static_value;
-    ).unwrap();
+    );
 
     // FIXME: not necessarily 0
     let ret_variant = enums.data_variants.get(&grammar.nonterms[0].ty).unwrap();

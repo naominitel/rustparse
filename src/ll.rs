@@ -347,7 +347,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
         let ident = cx.ident_of(&format!("RULE_{}", rule_no)[..]);
         rules.push(quote_item!(cx,
             static $ident: [Step; $count] = $static_value;
-        ).unwrap());
+        ));
     }
 
     // also generate the actions table, as an array of function pointers
@@ -380,9 +380,9 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                             $yytype_name::$variant(data) => data,
                             $unreachable
                         };
-                    ).unwrap()
+                    )
                 } else {
-                    quote_stmt!(cx, $arg_ident.pop().map(|_|()).unwrap();).unwrap()
+                    quote_stmt!(cx, $arg_ident.pop().map(|_|()).unwrap();)
                 });
 
             }
@@ -400,12 +400,11 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
             let variant = enums.data_variants.get(&nonterm.ty).unwrap();
             statements.push(quote_stmt!(cx,
                 $arg_ident.push($yytype_name::$variant($expr))
-            ).unwrap());
+            ));
 
-            let blk = cx.block(sp, statements, None);
             let ident = cx.ident_of(&format!("action_{}", rule_no)[..]);
             actions_funs.push(quote_item!(cx,
-                fn $ident($arg_ident: &mut Vec<$yytype_name>) { $blk }
+                fn $ident($arg_ident: &mut Vec<$yytype_name>) { $statements }
             ));
 
             rule_no += 1;
@@ -438,7 +437,7 @@ fn codegen(mut grammar: grammar::Grammar, table: &ParseTable, cx: &mut ExtCtxt)
                                       fn(&mut Vec<$yytype_name>) -> ())>;
                               $term_count];
                              $nonterm_count] = $static_value;
-    ).unwrap();
+    );
 
     // the other types
     // FIXME: hardcoded for now, should be user-defined
