@@ -55,7 +55,8 @@ pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums
     {
         // creates a variant in the yytype enum for the given type
         let mut make_yy_variant = |ty| {
-            let variant = parse::token::gensym_ident("");
+            let id = format!("Type{}", yytype_variants.len());
+            let variant = parse::token::gensym_ident(&id);
             yytype_variants.push(make_variant(variant, ty, sp));
             variant
         };
@@ -86,7 +87,7 @@ pub fn parser_enums(grammar: &grammar::Grammar, cx: &mut ExtCtxt) -> ParserEnums
 
             // we create an arm for the match which binds the
             // data inside the token to a gensymed ident
-            let data_ident = parse::token::gensym_ident("");
+            let data_ident = parse::token::gensym_ident("data");
             let (pattern, data_expr) = match term.ty {
                 Some(_) => {
                     // the yytype variant for the type of this token

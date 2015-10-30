@@ -70,7 +70,7 @@ impl Grammar {
     pub fn gen_nonterm(&mut self) -> usize {
         let idx = self.nonterms.len();
         self.nonterms.push(NonTerminal {
-            name: token::gensym_ident(""),
+            name: token::gensym_ident(&format!("NT{}", idx)),
             span: codemap::DUMMY_SP,
             productions: Vec::new(),
             ty: None
@@ -81,7 +81,7 @@ impl Grammar {
     pub fn gen_term(&mut self) -> usize {
         let idx = self.terminals.len();
         self.terminals.push(Terminal {
-            name: token::gensym_ident(""),
+            name: token::gensym_ident(&format!("T{}", idx)),
             span: codemap::DUMMY_SP,
             ty: None
         });
